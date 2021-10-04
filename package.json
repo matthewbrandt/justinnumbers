@@ -1,0 +1,32 @@
+{
+  "name": "justinnumbers",
+  "version": "0.0.1",
+  "description": "Real-time analytics for livestreamers!",
+  "main": "app.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/matthewbrandt/justinnumbers.git"
+  },
+  "keywords": [
+    "analytics",
+    "data",
+    "stream",
+    "livestream",
+    "realtime",
+    "real-time"
+  ],
+  "author": "Matthew Brandt aka mattytwoshoes",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/matthewbrandt/justinnumbers/issues"
+  },
+  "homepage": "https://github.com/matthewbrandt/justinnumbers#readme",
+  "dependencies": {
+    "axios": "^0.22.0",
+    "chart.js": "^3.5.1",
+    "pg": "^8.7.1"
+  }
+}
