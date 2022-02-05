@@ -3,6 +3,7 @@
   "version": "0.0.1",
   "description": "Real-time analytics for livestreamers!",
   "main": "app.js",
+  "type": "module",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
@@ -27,6 +28,11 @@
   "dependencies": {
     "axios": "^0.22.0",
     "chart.js": "^3.5.1",
-    "pg": "^8.7.1"
+    "dotenv": "^15.0.0",
+    "express": "^4.17.2",
+    "http": "^0.0.1-security",
+    "node-fetch": "^3.2.0",
+    "pg": "^8.7.1",
+    "ws": "^8.4.2"
   }
 }
