@@ -1,10 +1,10 @@
 function testWebSocket() {
     return new Promise( (resolve, reject) => {
-      var socket = new WebSocket("ws://streamymcstreamyface.up.railway.app:8999/ws/twitch-events/");
+      var socket = new WebSocket("wss://streamymcstreamyface.up.railway.app/ws/twitch-events/");
   
       socket.onopen = function(event) {
         socket.send("websocket is now open");
-        console.log("message");
+        console.log("this is a message");
       }
   
       socket.onmessage = function(event) {
@@ -15,6 +15,10 @@ function testWebSocket() {
         
    
         resolve(event.data);
+      }
+
+      socket.onerror = function(event) {
+        console.log(event);
       }
     });
 }
