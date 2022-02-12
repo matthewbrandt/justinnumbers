@@ -38,8 +38,7 @@ async function getUsers(users) {
         'Authorization': 'TOKEN ' + process.env.TAU_TOKEN,
     },
     params: {
-      //login: users
-      login: 'Transmex'
+      login: users
     }
   }).get()
 } 
@@ -62,49 +61,78 @@ async function readWriteUserData(users) {
 
   // run users meta code to update users table
   let usersUpdateQuery = `INSERT INTO twitch_users_meta (id,login,broadcaster_type,view_count,created_at)
-  VALUES (
-      SELECT id,
-             login,
-             broadcaster_type,
-             view_count,
-             created_at
-      FROM (
-           SELECT DISTINCT id,
-                           login,
-                           broadcaster_type,
-                           view_count,
-                           created_at,
-                           RANK() OVER(PARTITION BY id ORDER BY inserted_at DESC) AS user_rank
-          FROM twitch_users
-          ) AS tu
-      WHERE user_rank = 1
-      )`;
+  SELECT id,
+         login,
+         broadcaster_type,
+         view_count,
+         created_at
+  FROM (
+        SELECT DISTINCT id,
+                        login,
+                        broadcaster_type,
+                        view_count,
+                        created_at,
+                        RANK() OVER(PARTITION BY id ORDER BY inserted_at DESC) AS user_rank
+        FROM twitch_users
+        ) AS t1
+  WHERE user_rank = 1
+  ON CONFLICT (id) DO UPDATE
+  SET broadcaster_type = EXCLUDED.broadcaster_type,
+      view_count = EXCLUDED.view_count,
+      updated_at = NOW()
+  WHERE twitch_users_meta.broadcaster_type != EXCLUDED.broadcaster_type
+     OR twitch_users_meta.view_count < EXCLUDED.view_count;
+  `;
   try {
-    const res = await pool.query(usersUpdateQuery);
-    return res.rows;
+    await pool.query(usersUpdateQuery);
+    console.log("user update query executed");
   } catch (err) {
     console.log(err.stack)
   }
-
 
   // query the DB to check if they are in the user list
-  let compareUsers = '';
+  // if found in the DB, drop that user from the array (will be updated in a separate process)
+  let existingUsers = [];
+  let existingUsersQuery = `SELECT DISTINCT login FROM twitch_users_meta;`;
   try {
-    const res = await pool.query(insertUsers);
-    //console.log(res.rows);
-    return res.rows;
+    const res = await pool.query(existingUsersQuery);
+    for (let row of res.rows) {
+      existingUsers.push(row.login);
+    }
+    console.log(existingUsers);
   } catch (err) {
     console.log(err.stack)
   }
 
-  // if no data > then fetch with getUsers() and write to DB
-  
-  
-  let insertUsers = `INSERT INTO twitch_chatters (chatters) VALUES('${chatters}')`;
+  let missingUsers = [];
+  missingUsers = currentUsers.filter( function( el ) {
+    return !existingUsers.includes( el );
+  } );
+
+  // for all users missing in the DB run getUsers() and write to DB
+  const missingUserData = await getUsers(missingUsers);
+  let userData = missingUserData.data.data;
+
+  // drop columns we don't need from the array of objects
+  userData.forEach(object => {
+    delete object['display_name'];
+    delete object['type'];
+    delete object['description'];
+    delete object['profile_image_url'];
+    delete object['offline_image_url'];
+  });
+
+  let newUserData = [];
+  //let row of res.rows
+  for (let i = 0; i < userData.length; i++) {
+    newUserData.push(Object.values(userData[i]));
+  }
+
   try {
-      const res = await pool.query(insertUsers);
-      //console.log(res.rows);
-      return res.rows;
+      for (let i = 0; i < newUserData.length; i++){
+        let value = JSON.stringify(newUserData[i]);
+        const res = await pool.query(`INSERT INTO twitch_users_raw VALUES('${value}')`);
+      }
   } catch (err) {
     console.log(err.stack)
   }
@@ -116,14 +144,14 @@ async function getUserData() {
     let userArr = [];
     
     const myChatters = await getChatters();
-    console.log('myChatters =',myChatters.length);
+    //console.log('myChatters =',myChatters.length);
 
     // write chatters to postgres
-    writeChatterData(myChatters);
+    await writeChatterData(myChatters);
 
     // get the user data from postgres
     // for missing users get them from twitch helix
-    readWriteUserData(myChatters);
+    await readWriteUserData(myChatters);
 
     
 
@@ -138,9 +166,9 @@ async function getUserData() {
     return userArr;
   };
 
-  //getUserData();
-const notSafe = await getUsers();
-console.log(notSafe.data.data);
+  getUserData();
+//const notSafe = await getUsers();
+//console.log(notSafe.data.data);
 
   //testDBConn();
 
