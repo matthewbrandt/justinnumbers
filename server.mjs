@@ -1,11 +1,9 @@
 import dotenv from 'dotenv';
 dotenv.config();
 import fetch from 'node-fetch';
-import axios from 'axios';
 import pkg from 'pg';
 const { Pool } = pkg;
-
-const helix_base_url = 'https://streamymcstreamyface.up.railway.app/api/twitch/helix';
+import WebSocket from 'ws';
 
 // TODO: define broadcaster id based on twitch auth given by user
 const broadcaster_id = '556670211';
@@ -31,146 +29,102 @@ async function getChatters() {
   return chatterArr;
 }
 
-async function getUsers(users) {
-  return axios.create({
-    baseURL: `${helix_base_url}/users`,
-    headers: {
-        'Authorization': 'TOKEN ' + process.env.TAU_TOKEN,
-    },
-    params: {
-      login: users
-    }
-  }).get()
-} 
-
 async function writeChatterData(users) {
   let chatters = JSON.stringify(users);
   let insertUsers = `INSERT INTO twitch_chatters (chatters) VALUES('${chatters}')`;
   try {
       const res = await pool.query(insertUsers);
-      //console.log(res.rows);
-      return res.rows;
+      console.log(users.length, "users written into twitch_chatters");
+      return;
   } catch (err) {
     console.log(err.stack)
   }
 }
 
-async function readWriteUserData(users) {
-  // take all the chatters currently in chat
-  let currentUsers = users;
-
-  // run users meta code to update users table
-  let usersUpdateQuery = `INSERT INTO twitch_users_meta (id,login,broadcaster_type,view_count,created_at)
-  SELECT id,
-         login,
-         broadcaster_type,
-         view_count,
-         created_at
-  FROM (
-        SELECT DISTINCT id,
-                        login,
-                        broadcaster_type,
-                        view_count,
-                        created_at,
-                        RANK() OVER(PARTITION BY id ORDER BY inserted_at DESC) AS user_rank
-        FROM twitch_users
-        ) AS t1
-  WHERE user_rank = 1
-  ON CONFLICT (id) DO UPDATE
-  SET broadcaster_type = EXCLUDED.broadcaster_type,
-      view_count = EXCLUDED.view_count,
-      updated_at = NOW()
-  WHERE twitch_users_meta.broadcaster_type != EXCLUDED.broadcaster_type
-     OR twitch_users_meta.view_count < EXCLUDED.view_count;
-  `;
-  try {
-    await pool.query(usersUpdateQuery);
-    console.log("user update query executed");
-  } catch (err) {
-    console.log(err.stack)
-  }
-
-  // query the DB to check if they are in the user list
-  // if found in the DB, drop that user from the array (will be updated in a separate process)
-  let existingUsers = [];
-  let existingUsersQuery = `SELECT DISTINCT login FROM twitch_users_meta;`;
-  try {
-    const res = await pool.query(existingUsersQuery);
-    for (let row of res.rows) {
-      existingUsers.push(row.login);
-    }
-    console.log(existingUsers);
-  } catch (err) {
-    console.log(err.stack)
-  }
-
-  let missingUsers = [];
-  missingUsers = currentUsers.filter( function( el ) {
-    return !existingUsers.includes( el );
-  } );
-
-  // for all users missing in the DB run getUsers() and write to DB
-  const missingUserData = await getUsers(missingUsers);
-  let userData = missingUserData.data.data;
-
-  // drop columns we don't need from the array of objects
-  userData.forEach(object => {
-    delete object['display_name'];
-    delete object['type'];
-    delete object['description'];
-    delete object['profile_image_url'];
-    delete object['offline_image_url'];
-  });
-
-  let newUserData = [];
-  //let row of res.rows
-  for (let i = 0; i < userData.length; i++) {
-    newUserData.push(Object.values(userData[i]));
-  }
-
-  try {
-      for (let i = 0; i < newUserData.length; i++){
-        let value = JSON.stringify(newUserData[i]);
-        const res = await pool.query(`INSERT INTO twitch_users_raw VALUES('${value}')`);
-      }
-  } catch (err) {
-    console.log(err.stack)
-  }
-}
-
-// get chatters every 2 minutes
-// look up user data for unknown users
 async function getUserData() {
     let userArr = [];
     
+    // get chatters (users currently in chat)
     const myChatters = await getChatters();
-    //console.log('myChatters =',myChatters.length);
 
     // write chatters to postgres
     await writeChatterData(myChatters);
-
-    // get the user data from postgres
-    // for missing users get them from twitch helix
-    await readWriteUserData(myChatters);
-
-    
-
-    //const myUsers = await getUsers(myChatters);
-
-    // for (const row of firstResult.data.data) {
-    //   userArr.push(row);
-    // }
       
     // pool is now closed, too many sharks
-    pool.end();
-    return userArr;
+    //pool.end();
+    return;
   };
 
-  getUserData();
-//const notSafe = await getUsers();
-//console.log(notSafe.data.data);
+  async function writeRaidData(data) {
+    let insertData = `INSERT INTO twitch_raid_raw (raid_data) VALUES('${data}')`;
+    try {
+        await pool.query(insertData);
+        console.log("raid data written into twitch_raid_raw");
+        return;
+    } catch (err) {
+      console.log(err.stack)
+    }
+  }
 
-  //testDBConn();
+async function testWebSocket() {
+    return new Promise( (resolve, reject) => {
+      var socket = new WebSocket("wss://streamymcstreamyface.up.railway.app/ws/twitch-events/");
+  
+      socket.onopen = function(event) {
+        socket.send("websocket is now open");
+        socket.send(JSON.stringify({"token": process.env.TAU_TOKEN}));
+        console.log("this is a message");
+      }
+  
+      socket.onmessage = function(event) {
+        // {
+        // "id": null, 
+        // "event_id": "125d5b99-87f4-4f81-9a26-1e714416c091", 
+        // "event_type": "channel-raid", 
+        // "event_source": "TestCall", 
+        // "event_data": 
+        //   {
+        //   "from_broadcaster_user_id": null, 
+        //   "from_broadcaster_user_name": null, 
+        //   "from_broadcaster_user_login": null, 
+        //   "to_broadcaster_user_id": "556670211", 
+        //   "to_broadcaster_user_name": "Matty_TwoShoes", 
+        //   "to_broadcaster_user_login": "matty_twoshoes", 
+        //   "viewers": 69
+        //   }, 
+        //   "created": "2022-02-18T23:15:52.497894+00:00", 
+        //   "origin": "test"
+        // }
+        const output = JSON.parse(event.data);
+        if (output.event_type == 'channel-raid') {
+          console.log("raid event detected!")
+          getUserData();
+          writeRaidData(event.data);
+
+        }
+        else { console.log("something else that isn't a raid") }
+        
+   
+        resolve(event.data);
+      }
+
+      socket.onerror = function(event) {
+        console.log(event);
+      }
+    });
+  }
+
+
+  // detect when a raid happens by listening to the WS
+  testWebSocket();
+  // upon a raid, get chatters and write them to PG
+  // in addition, write the chatters into a new "raid" table design for measuring raid decay
+  // count number of "new" chatters from the raid, compare with the raid number for accuracy
+  // track this "cohort" as a raid cohort
+
+  
+
+
 
 
 
@@ -200,18 +154,3 @@ async function getUserData() {
 // backend
 
 //@finite: you can technically register an event sub subscription for raids that are initiated from a user id (from @dussed)
-
-
-
-//follower stuff
-let cursor_string = '';
-const getFollows = axios.create({
-    baseURL: 'https://streamymcstreamyface.up.railway.app/api/twitch/helix/users/follows',
-    headers: {
-        'Authorization': 'TOKEN ' + process.env.TAU_TOKEN,
-    },
-    params: {
-      to_id: broadcaster_id,
-      after: cursor_string
-    }
-})
