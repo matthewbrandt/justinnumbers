@@ -109,7 +109,11 @@ async function testWebSocket() {
       }
 
       socket.onerror = function(event) {
-        console.log(event);
+        console.log("error",event);
+      }
+
+      socket.onclose = function(event) {
+        console.log("the socket doth closeth", event);
       }
     });
   }
