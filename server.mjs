@@ -25,6 +25,7 @@ async function getChatters() {
 
   let chatterArr = [];
   chatterArr = [...vips,...moderators,...staff,...admins,...global_mods,...viewers];
+  chatterArr = chatterArr.sort();
 
   return chatterArr;
 }
@@ -71,7 +72,6 @@ async function testWebSocket() {
       var socket = new WebSocket("wss://streamymcstreamyface.up.railway.app/ws/twitch-events/");
   
       socket.onopen = function(event) {
-        socket.send("websocket is now open");
         socket.send(JSON.stringify({"token": process.env.TAU_TOKEN}));
         console.log("this is a message");
       }
@@ -119,6 +119,7 @@ async function testWebSocket() {
   }
 
 
+  getUserData();
   // detect when a raid happens by listening to the WS
   testWebSocket();
   // upon a raid, get chatters and write them to PG
