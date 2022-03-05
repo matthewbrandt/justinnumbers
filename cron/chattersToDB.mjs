@@ -1,11 +1,8 @@
 import dotenv from 'dotenv';
 dotenv.config();
 import fetch from 'node-fetch';
-import axios from 'axios';
 import pkg from 'pg';
 const { Pool } = pkg;
-
-const helix_base_url = 'https://streamymcstreamyface.up.railway.app/api/twitch/helix';
 
 // TODO: define broadcaster id based on twitch auth given by user
 const broadcaster_id = '556670211';
@@ -27,11 +24,10 @@ async function getChatters() {
 
   let chatterArr = [];
   chatterArr = [...vips,...moderators,...staff,...admins,...global_mods,...viewers];
+  chatterArr = chatterArr.sort();
 
   return chatterArr;
 }
-
-
 
 async function writeChatterData(users) {
   let chatters = JSON.stringify(users);
@@ -39,7 +35,7 @@ async function writeChatterData(users) {
   try {
       const res = await pool.query(insertUsers);
       console.log(users.length, "users written into twitch_chatters");
-      return res.rows;
+      return;
   } catch (err) {
     console.log(err.stack)
   }
@@ -53,10 +49,10 @@ async function getUserData() {
 
     // write chatters to postgres
     await writeChatterData(myChatters);
-  
+      
     // pool is now closed, too many sharks
-    pool.end();
-    return userArr;
+    //pool.end();
+    return;
   };
 
-  getUserData();
+getUserData();

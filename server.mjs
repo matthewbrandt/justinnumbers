@@ -102,7 +102,10 @@ async function testWebSocket() {
           writeRaidData(event.data);
 
         }
-        else { console.log("something else that isn't a raid") }
+        else { 
+          console.log("other event")
+          getUserData(); 
+        }
         
    
         resolve(event.data);
